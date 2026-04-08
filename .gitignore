@@ -200,6 +200,9 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Скрываем файлы с секретами
+.env
+
 
 # Marimo
 marimo/_static/
