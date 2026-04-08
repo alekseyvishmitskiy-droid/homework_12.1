@@ -3,9 +3,7 @@ from typing import Any, Generator, Iterator
 import pytest
 
 
-def filter_by_currency(
-    transactions: list[dict[str, Any]], currency: str
-) -> Iterator[dict[str, Any]]:  # Теперь Mypy будет знать, что здесь работает next()
+def filter_by_currency(transactions: list[dict[str, Any]], currency: str) -> Iterator[dict[str, Any]]:
     return (tx for tx in transactions if tx.get("operationAmount", {}).get("currency", {}).get("code") == currency)
 
 

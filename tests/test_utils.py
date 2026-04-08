@@ -1,60 +1,68 @@
-import unittest
-from typing import Any
-from unittest.mock import MagicMock, patch
-
-import requests
-
-from src.utils import get_transaction_amount_in_rub
+import json
+import pytest
+from typing import Any, List, Dict
+from unittest.mock import patch, mock_open
+from src.utils import get_transactions_data, filter_transactions_by_currency
 
 
-class TestExternalApi(unittest.TestCase):
+def test_get_transactions_data_success() -> None:
+    """Тест успешного чтения корректного JSON-списка."""
+    mock_data = [{"id": 1, "amount": "100"}]
+    mock_json = json.dumps(mock_data)
 
-    def test_amount_rub(self) -> None:
-        """1. Тест транзакции в рублях (без вызова API)"""
-        transaction: dict[str, Any] = {"operationAmount": {"amount": "100.50", "currency": {"code": "RUB"}}}
-        self.assertEqual(get_transaction_amount_in_rub(transaction), 100.50)
-
-    @patch("os.getenv")
-    @patch("requests.get")
-    def test_amount_conversion_usd(self, mock_get: MagicMock, mock_getenv: MagicMock) -> None:
-        """2. Тест успешной конвертации из USD через мок API"""
-        mock_getenv.return_value = "fake_api_key_for_test"
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"result": 7500.0}
-        mock_get.return_value = mock_response
-
-        transaction: dict[str, Any] = {"operationAmount": {"amount": "100", "currency": {"code": "USD"}}}
-
-        result = get_transaction_amount_in_rub(transaction)
-
-        self.assertEqual(result, 7500.0)
-        mock_get.assert_called_once()
-
-    @patch("os.getenv")
-    def test_missing_api_key(self, mock_getenv: MagicMock) -> None:
-        """3. Тест сценария, когда API_KEY отсутствует в .env"""
-        mock_getenv.return_value = None
-
-        transaction: dict[str, Any] = {"operationAmount": {"amount": "100", "currency": {"code": "USD"}}}
-
-        result = get_transaction_amount_in_rub(transaction)
-        self.assertEqual(result, 0.0)
-
-    @patch("os.getenv")
-    @patch("requests.get")
-    def test_api_error(self, mock_get: MagicMock, mock_getenv: MagicMock) -> None:
-        """4. Тест поведения при сетевой ошибке API (должен вернуть 0.0)"""
-        mock_getenv.return_value = "fake_api_key_for_test"
-
-        mock_get.side_effect = requests.exceptions.RequestException("Connection error")
-
-        transaction: dict[str, Any] = {"operationAmount": {"amount": "100", "currency": {"code": "EUR"}}}
-
-        result = get_transaction_amount_in_rub(transaction)
-        self.assertEqual(result, 0.0)
+    with patch("builtins.open", mock_open(read_data=mock_json)):
+        with patch("os.path.exists", return_value=True):
+            result = get_transactions_data("fake_path.json")
+            assert result == mock_data
+            assert len(result) == 1
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_get_transactions_data_not_found() -> None:
+    """Тест поведения, если файл не существует."""
+    with patch("os.path.exists", return_value=False):
+        result = get_transactions_data("non_existent.json")
+        assert result == []
+
+
+def test_get_transactions_data_invalid_json() -> None:
+    """Тест обработки битого JSON-файла."""
+    with patch("builtins.open", mock_open(read_data="invalid json")):
+        with patch("os.path.exists", return_value=True):
+            result = get_transactions_data("bad.json")
+            assert result == []
+
+
+def test_get_transactions_data_not_a_list() -> None:
+    """Тест случая, когда в JSON не список, а словарь."""
+    with patch("builtins.open", mock_open(read_data='{"key": "value"}')):
+        with patch("os.path.exists", return_value=True):
+            result = get_transactions_data("dict.json")
+            assert result == []
+
+
+@pytest.fixture
+def sample_transactions() -> List[Dict[str, Any]]:
+    """Фикстура с тестовыми данными."""
+    return [
+        {"id": 1, "operationAmount": {"currency": {"code": "USD"}}},
+        {"id": 2, "operationAmount": {"currency": {"code": "RUB"}}},
+        {"id": 3, "currency": "USD"},
+        {"id": 4, "operationAmount": {"currency": {"code": "EUR"}}},
+    ]
+
+
+def test_filter_transactions_by_usd(sample_transactions: List[Dict[str, Any]]) -> None:
+    """Проверка фильтрации по USD."""
+    result = filter_transactions_by_currency(sample_transactions, "USD")
+    assert len(result) == 2
+
+
+def test_filter_transactions_no_match(sample_transactions: List[Dict[str, Any]]) -> None:
+    """Проверка фильтрации валюты, которой нет в списке."""
+    result = filter_transactions_by_currency(sample_transactions, "GBP")
+    assert result == []
+
+
+def test_filter_transactions_empty_list() -> None:
+    """Проверка работы с пустым списком."""
+    assert filter_transactions_by_currency([], "RUB") == []

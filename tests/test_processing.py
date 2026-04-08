@@ -22,7 +22,7 @@ def data() -> List[Dict[str, Any]]:
         ("Visa Gold 5999414228426353", "Visa Gold 5999 41** **** 6353"),
         ("Maestro 1596837814705307", "Maestro 1596 83** **** 5307"),
         ("Счет 73654108430135874305", "Счет **4305"),
-        ("", "Ошибка: Пустая строка"),
+        ("", "Ошибка: Введена пустая строка"),
     ],
 )
 def test_mask_card_and_account_valid(input_string: str, expected: str) -> None:
@@ -67,15 +67,15 @@ def test_filter_by_state_no_match(data: List[Dict[str, Any]]) -> None:
 def test_sort_by_date_descending(data: List[Dict[str, Any]]) -> None:
     """Сортировка от новых к старым (reverse=True по умолчанию)"""
     result = sort_by_date(data)
-    assert result[0]["id"] == 441945873  # 2019 год
-    assert result[-1]["id"] == 939719570  # 2018 июнь
+    assert result[0]["id"] == 441945873
+    assert result[-1]["id"] == 939719570
 
 
 def test_sort_by_date_ascending(data: List[Dict[str, Any]]) -> None:
     """Сортировка от старых к новым (reverse=False)"""
     result = sort_by_date(data, reverse=False)
-    assert result[0]["id"] == 939719570  # 2018 июнь
-    assert result[-1]["id"] == 441945873  # 2019 год
+    assert result[0]["id"] == 939719570
+    assert result[-1]["id"] == 441945873
 
 
 def test_sort_by_date_empty_list() -> None:

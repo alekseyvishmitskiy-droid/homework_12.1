@@ -1,94 +1,80 @@
-import json
+import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, cast
-
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-API_KEY: Optional[str] = os.getenv("EXCHANGE_RATE_API_KEY")
+import json
+from typing import List, Dict, Any, cast
 
 TransactionList = List[Dict[str, Any]]
 
+if not os.path.exists("logs"):
+    os.makedirs("logs")
 
-def stat_decorator(func: Callable[..., TransactionList]) -> Callable[..., TransactionList]:
-    """Декоратор для вывода статистики по отфильтрованным транзакциям."""
-
-    def wrapper(*args: Any, **kwargs: Any) -> TransactionList:
-        result = func(*args, **kwargs)
-        filtered_transactions = cast(TransactionList, result)
-
-        total_amount = sum([float(t.get("amount", 0)) for t in filtered_transactions])
-        print(f"Отфильтровано {len(filtered_transactions)} транзакций на сумму {total_amount}")
-        return filtered_transactions
-
-    return wrapper
+logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler("logs/utils.log", mode="w", encoding="utf-8")
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
 
 
 def get_transactions_data(path: str) -> TransactionList:
     """Читает JSON-файл и возвращает список транзакций."""
+    logger.info(f"ПОЛЬЗОВАТЕЛЬ ЗАПРОСИЛ ФАЙЛ: {path}")
+
+    if not path:
+        logger.error("Введен пустой путь к файлу")
+        return []
+
     if not os.path.exists(path):
+        logger.warning(f"ФАЙЛ НЕ НАЙДЕН: {path}")
+        print(f"Ошибка: Файл '{path}' не существует.")
         return []
+
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return cast(TransactionList, data) if isinstance(data, list) else []
-    except json.JSONDecodeError:
+            if isinstance(data, list):
+                logger.info(f"УСПЕХ: Загружено {len(data)} транзакций из {path}")
+                return cast(TransactionList, data)
+            else:
+                logger.error(f"ФОРМАТ ОШИБКА: Файл {path} содержит {type(data)}, а не список")
+                return []
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON ОШИБКА в файле {path}: {e}")
+        print("Ошибка: Неверный формат JSON в файле.")
+        return []
+    except Exception as e:
+        logger.critical(f"КРИТИЧЕСКАЯ ОШИБКА при чтении {path}: {e}")
         return []
 
 
-@stat_decorator
-def filter_transactions_by_currency(input_file: str, output_file: str, currency_code: str) -> TransactionList:
-    """Фильтрует транзакции из файла по валюте и сохраняет результат."""
-    transactions = get_transactions_data(input_file)
+def filter_transactions_by_currency(transactions: TransactionList, currency_code: str) -> TransactionList:
+    """Фильтрует транзакции по заданному коду валюты (например, 'USD')."""
+    logger.info(f"Фильтрация транзакций по валюте: {currency_code}")
 
-    filtered = [
-        t
-        for t in transactions
-        if t.get("currency") == currency_code
-        or (
-            isinstance(t.get("operationAmount"), dict)
-            and cast(dict, t.get("operationAmount")).get("currency", {}).get("code") == currency_code
-        )
-    ]
+    filtered_transactions = []
+    for transaction in transactions:
+        amount_info = transaction.get("operationAmount")
+        if isinstance(amount_info, dict):
+            code = amount_info.get("currency", {}).get("code")
+        else:
+            code = transaction.get("currency")
 
-    output_dir = os.path.dirname(output_file)
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
+        if code == currency_code:
+            filtered_transactions.append(transaction)
 
-    with open(output_file, "w") as f:
-        json.dump(filtered, f, indent=4, ensure_ascii=False)
-
-    return filtered
+    logger.info(f"Найдено транзакций: {len(filtered_transactions)}")
+    return filtered_transactions
 
 
-def get_transaction_amount_in_rub(transaction: Dict[str, Any]) -> float:
-    """
-    Запрашивает актуальный курс через API и конвертирует сумму в рубли.
-    """
-    operation_amount: Dict[str, Any] = transaction.get("operationAmount", {})
-    amount: float = float(operation_amount.get("amount", 0))
-    currency_code: str = operation_amount.get("currency", {}).get("code", "RUB")
+if __name__ == "__main__":
+    print("--- 📂 Работа с данными транзакций ---")
 
-    if currency_code == "RUB":
-        return amount
+    file_path = input("Введите путь к JSON-файлу (например, data/operations.json): ").strip()
 
-    if currency_code in ["USD", "EUR"]:
-        current_api_key = API_KEY or os.getenv("EXCHANGE_RATE_API_KEY")
+    transactions = get_transactions_data(file_path)
 
-        if not current_api_key:
-            print("Критическая ошибка: API_KEY не найден в .env")
-            return 0.0
-
-        url = f"https://apilayer.com{currency_code}&amount={amount}"
-        headers = {"apikey": current_api_key}
-
-        try:
-            response = requests.get(url, headers=headers, timeout=5)
-            response.raise_for_status()
-            result: float = float(response.json().get("result", 0))
-            return result
-        except Exception:
-            return 0.0
-
-    return 0.0
+    if transactions:
+        print(f"✅ Успешно прочитано транзакций: {len(transactions)}")
+        print("Первая запись:", transactions[0])
+    else:
+        print("❌ Не удалось получить данные. Подробности в logs/utils.log")
