@@ -1,8 +1,10 @@
 import json
+from typing import Any, Dict, List
+from unittest.mock import mock_open, patch
+
 import pytest
-from typing import Any, List, Dict
-from unittest.mock import patch, mock_open
-from src.utils import get_transactions_data, filter_transactions_by_currency
+
+from src.utils import filter_transactions_by_currency, get_transactions_data
 
 
 def test_get_transactions_data_success() -> None:
