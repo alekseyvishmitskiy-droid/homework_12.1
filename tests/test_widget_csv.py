@@ -10,7 +10,7 @@ def process_bank_transactions(file_path: str) -> Optional[pd.DataFrame]:
     """Читает CSV и применяет маскирование к колонкам."""
 
     if not os.path.exists(file_path):
-        print(f"❌ Файл {file_path} не найден!")
+        print(f"Файл {file_path} не найден!")
         return None
 
     try:
@@ -30,5 +30,5 @@ def process_bank_transactions(file_path: str) -> Optional[pd.DataFrame]:
         return df
 
     except Exception as e:
-        print(f"❌ Произошла ошибка: {e}")
+        print(f"Произошла ошибка: {e}")
         return None

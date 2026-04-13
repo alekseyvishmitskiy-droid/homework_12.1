@@ -14,16 +14,14 @@ def process_bank_transactions_excel(file_path: str) -> Optional[pd.DataFrame]:
         return None
 
     try:
-        # Читаем Excel. Указываем тип возвращаемого значения для mypy
         df: pd.DataFrame = pd.read_excel(file_path, engine="openpyxl")
 
-        # 1. Обрабатываем дату
+
         if "date" in df.columns:
             df["date"] = (
                 df["date"].fillna("").apply(lambda x: get_date(str(x)) if str(x).strip() != "" else "00.00.0000")
             )
 
-        # 2. Маскируем отправителя и получателя
         for col in ["from", "to"]:
             if col in df.columns:
                 df[col] = (
