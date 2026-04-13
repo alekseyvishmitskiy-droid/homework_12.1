@@ -1,5 +1,6 @@
 from typing import Any
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from src.external_api import get_transaction_amount_in_rub
 
 
