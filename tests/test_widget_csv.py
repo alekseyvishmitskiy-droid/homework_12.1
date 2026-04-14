@@ -1,34 +1,53 @@
-import os
-from typing import Optional
+from unittest.mock import patch
 
 import pandas as pd
 
-from src.widget import get_date, mask_card_and_account
+from src.widget_csv import process_bank_transactions
 
 
-def process_bank_transactions(file_path: str) -> Optional[pd.DataFrame]:
-    """Читает CSV и применяет маскирование к колонкам."""
+def test_process_csv_valid_data() -> None:
+    """Тестирование успешного чтения и маскирования CSV."""
+    data = {
+        "date": ["2023-12-31T12:00:00"],
+        "from": ["Visa Platinum 7000792289606611"],
+        "to": ["Счет 73654108430135874305"],
+        "description": ["Перевод"],
+    }
+    df = pd.DataFrame(data)
 
-    if not os.path.exists(file_path):
-        print(f"Файл {file_path} не найден!")
-        return None
+    with patch("os.path.exists") as mock_exists, patch("pandas.read_csv") as mock_read:
+        mock_exists.return_value = True
+        mock_read.return_value = df
 
-    try:
-        df: pd.DataFrame = pd.read_csv(file_path, sep=";")
+        result = process_bank_transactions("fake_path.csv")
 
-        if "date" in df.columns:
-            df["date"] = (
-                df["date"].fillna("").apply(lambda x: get_date(str(x)) if str(x).strip() != "" else "00.00.0000")
-            )
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "Visa Platinum 7000 79** **** 6611" in result[0]["from"]
+        assert "**4305" in result[0]["to"]
 
-        for col in ["from", "to"]:
-            if col in df.columns:
-                df[col] = (
-                    df[col].fillna("").apply(lambda x: mask_card_and_account(str(x)) if str(x).strip() != "" else "—")
-                )
 
-        return df
+def test_process_csv_missing_file() -> None:
+    """Тестирование поведения при отсутствии файла."""
+    result = process_bank_transactions("non_existent.csv")
+    assert result == []
 
-    except Exception as e:
-        print(f"Произошла ошибка: {e}")
-        return None
+
+def test_process_csv_error_during_reading() -> None:
+    """Тестирование обработки исключений (например, битый файл)."""
+    with patch("os.path.exists") as mock_exists, patch("pandas.read_csv") as mock_read:
+        mock_exists.return_value = True
+        mock_read.side_effect = Exception("Read error")
+
+        result = process_bank_transactions("corrupt.csv")
+        assert result == []
+
+
+def test_process_csv_empty_file() -> None:
+    """Тестирование обработки пустого файла."""
+    with patch("os.path.exists") as mock_exists, patch("pandas.read_csv") as mock_read:
+        mock_exists.return_value = True
+        mock_read.return_value = pd.DataFrame()
+
+        result = process_bank_transactions("empty.csv")
+        assert result == []
