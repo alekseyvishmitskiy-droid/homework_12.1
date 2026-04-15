@@ -1,11 +1,10 @@
 import os
-
 import pandas as pd
-
+from typing import List, Dict, Any
 from src.widget import get_date, mask_card_and_account
 
 
-def process_bank_transactions(file_path):
+def process_bank_transactions(file_path: str) -> List[Dict[Any, Any]]:
     """Читает CSV, маскирует данные и возвращает список словарей."""
 
     if not os.path.exists(file_path):
